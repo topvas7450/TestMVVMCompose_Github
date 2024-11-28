@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,11 +13,16 @@ import androidx.compose.foundation.layout.imeNestedScroll
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,9 +41,20 @@ import kotlinx.coroutines.delay
 fun BrowserSearchScreen(
     viewModel: BrowserSearchScreenModel = viewModel()
 ) {
-    var queryStr by remember { mutableStateOf("") }
+    val isInitialized = remember { mutableStateOf(false) }
+    var queryStr by remember { mutableStateOf("topvas7450") }
     val uiState by viewModel.uiState.collectAsState()
     val browserResultState by viewModel.browserResultState.collectAsState()
+
+    SideEffect {
+        Napier.i("SideEffect...isInitialized:${isInitialized.value}")
+        if (!isInitialized.value) {
+            viewModel.search(queryStr)
+            viewModel.onSearchStrChange(queryStr)
+
+            isInitialized.value = true
+        }
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -44,21 +62,26 @@ fun BrowserSearchScreen(
         LaunchedEffect(uiState.isLoading) {
             Napier.i("LaunchedEffect... ${uiState.isLoading}")
             if (uiState.isLoading) {
+                Napier.i("LaunchedEffect...in:${uiState.isLoading}")
                 // Perform a long-running operation, such as fetching data from a network
 //                delay(1000)
 //                val newData = fetchData()
                 // Update the state with the new data
 //                data.value = newData
 //                viewModel.loading(false)
-                viewModel.searchUserRepos("topvas7450")
+
             }
         }
+        Napier.d("viewModel:$viewModel")
         SearchBox(
             modifier = Modifier.fillMaxWidth(),
             searchStr = queryStr,
-            onSearchStrChange = { queryStr = it },
+            onSearchStrChange = {
+                queryStr = it
+                viewModel.onSearchStrChange(it)
+            },
             onDoSearch = {
-                viewModel.searchUserRepos(it)
+                viewModel.search(it)
                 Napier.d(message = it, tag = "onDoSearch")
             }
         )
@@ -67,9 +90,121 @@ fun BrowserSearchScreen(
             return@Column
         }
         // type: user, repos, start
-//        Text("result")
+        SearchTypeSelectorV2(
+            selectedSearchType = uiState.browserType,
+            onItemClick = { selectedSearchType ->
+                viewModel.searchTypeSelected(selectedSearchType)
+            }
+        )
 
         SearchResult(browserResultState.repos)
+    }
+}
+
+// TODO 點擊分類時會進行搜尋，但在api回來前點及其他分類的處理?
+// * cancel進行中api emit下一個搜尋,
+// * block ui直到api回來或timeout
+
+// 測試狀態提升或是viewModel共用(hilt, remember(compositionalLocal), provider)
+// 傳入viewModel會減少composable的復用性，使與view耦合較深
+@Composable
+fun SearchTypeSelector(
+    viewModel: BrowserSearchScreenModel = viewModel()
+) {
+    Napier.d("viewModel:$viewModel")
+    val uiState by viewModel.uiState.collectAsState()
+
+    Row(
+       modifier = Modifier.fillMaxWidth()
+           .padding(start = 16.dp, end = 16.dp)
+    ) {
+        Button(
+            onClick = {
+                viewModel.searchTypeSelected(SearchType.Repos)
+            },
+            colors = ButtonDefaults.buttonColors(
+                // 所有button都這樣寫的話不會recompose，顏色沒有改變
+                containerColor = if(viewModel.isSearchTypeSelected(SearchType.Repos)) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Text(maxLines = 1, text = SearchType.Repos.showText)
+        }
+        Spacer(modifier = Modifier.padding(1.dp))
+        Button(
+            onClick = {
+                viewModel.searchTypeSelected(SearchType.Starred)
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if(uiState.browserType == SearchType.Starred) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Text(maxLines = 1, text = SearchType.Starred.showText)
+        }
+        Spacer(modifier = Modifier.padding(1.dp))
+        Button(
+            onClick = {
+                viewModel.searchTypeSelected(SearchType.User)
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if(uiState.browserType == SearchType.User) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Text(maxLines = 1, text = SearchType.User.showText)
+        }
+    }
+}
+
+/**
+ * V2將composable的狀態提升
+ */
+@Composable
+fun SearchTypeSelectorV2(
+    selectedSearchType: SearchType,
+    onItemClick: (SearchType) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp)
+    ) {
+        Button(
+            onClick = {
+                onItemClick(SearchType.Repos)
+            },
+            colors = ButtonDefaults.buttonColors(
+                // 所有button都這樣寫的話不會recompose，顏色沒有改變
+                containerColor = if(selectedSearchType == SearchType.Repos) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Text(maxLines = 1, text = SearchType.Repos.showText)
+        }
+        Spacer(modifier = Modifier.padding(1.dp))
+        Button(
+            onClick = {
+                onItemClick(SearchType.Starred)
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if(selectedSearchType == SearchType.Starred) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Text(maxLines = 1, text = SearchType.Starred.showText)
+        }
+        Spacer(modifier = Modifier.padding(1.dp))
+        Button(
+            onClick = {
+                onItemClick(SearchType.User)
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if(selectedSearchType == SearchType.User) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Text(maxLines = 1, text = SearchType.User.showText)
+        }
     }
 }
 
@@ -85,6 +220,7 @@ private fun BrowserSearchScreenPreview() {
             onSearchStrChange = { },
             onDoSearch = { }
         )
+        SearchTypeSelector()
     }
 }
 
@@ -129,7 +265,7 @@ fun TestBottomLayout() {
 //                Icon(imageVector = Icons.Filled.Add, contentDescription = "Add")
                 SearchBox(
                     modifier = Modifier.fillMaxWidth(),
-                    searchStr = "term",
+                    searchStr = "repos name",
                     onSearchStrChange = { },
                     onDoSearch = { }
                 )

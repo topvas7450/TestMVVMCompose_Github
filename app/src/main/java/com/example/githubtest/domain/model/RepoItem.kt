@@ -5,11 +5,11 @@ import kotlinx.datetime.Instant
 data class RepoItem(
   val id: Int,
   val fullName: String,
-  val language: String?,
-  val starCount: Int,
-  val name: String,
-  val repoDescription: String?,
+  val language: String? = null,
+  val starCount: Int? = null,
+  val name: String? = null,
+  val repoDescription: String? = null,
   val htmlUrl: String,
-  val owner: Owner,
-  val updatedAt: Instant,
+  val owner: Owner = Owner(),
+  val updatedAt: Instant? = null,
 )

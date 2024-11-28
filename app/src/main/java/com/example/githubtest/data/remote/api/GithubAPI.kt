@@ -1,6 +1,8 @@
 package com.example.githubtest.data.remote.api
 
 import com.example.githubtest.data.remote.api.resp.GithubSearchReposResponse
+import com.example.githubtest.data.remote.api.resp.GithubSearchUserResponse
+import com.example.githubtest.data.remote.api.resp.GithubUserStarredReposResponse
 import com.example.githubtest.ui.login.User
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
@@ -49,7 +51,7 @@ val httpClient: HttpClient = HttpClient {
     }
 }
 
-suspend fun user(userName: String = "topvas7450") {
+suspend fun user(userName: String) {
 
     val response: HttpResponse = httpClient.get("https://api.github.com/users/$userName")
     if (response.status.value in 200..299) {
@@ -74,13 +76,13 @@ suspend fun user(userName: String = "topvas7450") {
     }
 }
 
-suspend fun starred(userName: String = "topvas7450") {
+suspend fun starred(userName: String) {
     val tmp: HttpResponse = httpClient.get("https://api.github.com/users/$userName/starred") {
-        headers {
-            append("Accept", "application/vnd.github+json")
-            append("Authorization", "Bear $gToken")
-            append("X-GitHub-Api-Version", "2022-11-28")
-        }
+//        headers {
+//            append("Accept", "application/vnd.github+json")
+//            append("Authorization", "Bear $gToken")
+//            append("X-GitHub-Api-Version", "2022-11-28")
+//        }
     }
     if (tmp.status.value in 200..299) {
 //                val stringBody: String = response.body()
@@ -92,7 +94,7 @@ suspend fun starred(userName: String = "topvas7450") {
 }
 // /users/{username}/repos
 
-suspend fun userRepos(userName: String = "topvas7450"): GithubSearchReposResponse? {
+suspend fun userRepos(userName: String): GithubSearchReposResponse? {
 
     val response: HttpResponse = httpClient.get("https://api.github.com/users/$userName/repos") {
         headers {
@@ -125,4 +127,32 @@ suspend fun searchUserRepos(userName: String, page: Int) = withContext(Dispatche
             }
             .build(),
     ).body<GithubSearchReposResponse>()
+}
+
+suspend fun searchUserStarredRepos(userName: String, page: Int) = withContext(Dispatchers.IO) {
+    httpClient.get(
+        URLBuilder(baseUrl)
+            .apply {
+                path("users/$userName/starred")
+//                parameters.append("q", "user:$userName")
+                parameters.append("page", page.toString())
+            }
+            .build(),
+    ).body<GithubUserStarredReposResponse>()
+}
+
+// https://github.com/github/docs/blob/main/content/search-github/searching-on-github/searching-users.md
+// https://docs.github.com/en/search-github/searching-on-github/searching-users
+// https://api.github.com/search/users?q=topvas7450+in%3Afullname&type=Users
+suspend fun searchUser(userName: String, page: Int = 1) = withContext(Dispatchers.IO) {
+    httpClient.get(
+        URLBuilder(baseUrl)
+            .apply {
+                path("search/users")
+                // 參數'+'
+                encodedParameters.append("q", "$userName+in%3Afullname")
+                parameters.append("page", page.toString())
+            }
+            .build(),
+    ).body<GithubSearchUserResponse>()
 }
